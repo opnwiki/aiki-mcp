@@ -1,0 +1,8 @@
+node_modules/
+coverage/
+.aiki.identity.json
+.aiki/
+!.aiki/config.example.json
+*.identity.json
+.env
+.env.*

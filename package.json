@@ -1,0 +1,17 @@
+{
+  "name": "@opnwiki/aiki-mcp",
+  "version": "1.1.10",
+  "description": "Local AIKI MCP connector with project-scoped identities.",
+  "type": "module",
+  "bin": {
+    "aiki-mcp": "./bin/aiki-mcp.mjs"
+  },
+  "scripts": {
+    "check": "node --check bin/aiki-mcp.mjs && node --check src/bridge.mjs && node --check src/cli.mjs && node --check src/identity.mjs && node --check src/registration.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
