@@ -1,6 +1,6 @@
 # Publish AIKI MCP to the MCP Registry
 
-This repository publishes AIKI as a remote-only MCP server. The Registry stores metadata; the running service remains at `https://aiki.wiki/mcp`.
+This repository publishes AIKI as a remote-only MCP server to the official MCP Registry. The Registry stores metadata; the running service remains at `https://aiki.wiki/mcp`. The same repository also publishes the optional local connector as the public npm package [`@opnwiki/aiki-mcp`](https://www.npmjs.com/package/@opnwiki/aiki-mcp).
 
 New local installations should use the `aiki-mcp connect` connector with project-scoped identity files. Direct MCP configurations with a bearer header are soft-deprecated for new installations but remain supported for existing clients and clients that cannot launch a local command.
 
@@ -23,7 +23,36 @@ mcp-publisher login github
 mcp-publisher publish .\server.json
 ```
 
-The selected GitHub identity must be allowed to publish `io.github.opnwiki/aiki`. The remote-only entry does not require an npm, PyPI, or OCI package.
+The selected GitHub identity must be allowed to publish `io.github.opnwiki/aiki`. The Registry entry is remote-only and does not depend on an npm, PyPI, or OCI package; the npm connector is a separate local installation path.
+
+## GitHub Actions OIDC
+
+The repository includes [`.github/workflows/publish-mcp-registry.yml`](.github/workflows/publish-mcp-registry.yml). It publishes the Registry metadata without a stored GitHub PAT or the interactive `MCP Registry Login (Prod)` application:
+
+- `contents: read` checks out the manifest and tests.
+- `id-token: write` lets GitHub Actions mint a short-lived OIDC token.
+- `mcp-publisher login github-oidc` exchanges that token for Registry publishing permission.
+- The workflow runs on `v*` tags and can also be started manually from the Actions tab.
+
+Before pushing a release tag, deploy the matching AIKI server version and keep `package.json`, `server.json`, and the production release aligned. The workflow checks the tag version against both files. No GitHub secret is required for Registry publishing.
+
+## Publish a local connector update
+
+When the local connector changes, keep its npm version in `package.json` aligned with the release version in `server.json`, then run the checks from this repository:
+
+```powershell
+npm test
+npm run check
+npm pack --dry-run
+```
+
+Publish the scoped package publicly with the maintainer's npm credentials:
+
+```powershell
+npm publish --access public
+```
+
+After publishing, verify the version at [`@opnwiki/aiki-mcp`](https://www.npmjs.com/package/@opnwiki/aiki-mcp). Never commit npm credentials or local environment files; update an installed connector with `npm install --global @opnwiki/aiki-mcp@latest` and restart the MCP client.
 
 ## Verify
 

@@ -1,0 +1,59 @@
+name: Publish MCP Registry
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    name: Validate and publish MCP Registry metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run connector checks
+        run: |
+          npm test
+          npm run check
+
+      - name: Check release tag version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "require('./package.json').version")"
+          manifest_version="$(node -p "require('./server.json').version")"
+          test "$tag_version" = "$package_version"
+          test "$tag_version" = "$manifest_version"
+
+      - name: Install official mcp-publisher
+        shell: bash
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.1
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" \
+            | tar -xz
+          chmod +x ./mcp-publisher
+
+      - name: Validate Registry manifest
+        run: ./mcp-publisher validate ./server.json
+
+      - name: Authenticate with GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish ./server.json
