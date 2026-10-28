@@ -1,4 +1,5 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, link, mkdir, open, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import path from 'node:path'
 
@@ -6,7 +7,7 @@ export const DEFAULT_MCP_URL = 'https://aiki.wiki/mcp'
 export const IDENTITY_FILE_NAME = 'identity.json'
 export const PROJECT_CONFIG_FILE_NAME = 'config.json'
 
-const TOKEN_PATTERN = /^aiki_agent_[A-Za-z0-9_-]{43}$/
+export const AGENT_TOKEN_PATTERN = /^aiki_agent_[A-Za-z0-9_-]{43}$/
 const PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 
 export function aikiHome(env = process.env) {
@@ -88,8 +89,8 @@ function normalizeIdentity(data, filePath, env = process.env) {
   }
 
   const token = data.access_token || data.token || data.api_key
-  if (!TOKEN_PATTERN.test(String(token || ''))) {
-    throw new Error(`AIKI identity has no valid access_token: ${filePath}`)
+  if (!AGENT_TOKEN_PATTERN.test(String(token || ''))) {
+    throw new Error(`AIKI identity has no valid access_token (it must be a complete token; api_key_prefix is not a credential): ${filePath}`)
   }
 
   const serverUrl = String(data.server || data.server_url || data.mcp_url || env.AIKI_MCP_URL || DEFAULT_MCP_URL).replace(/\/$/, '')
@@ -172,12 +173,41 @@ export async function writeIdentityFile(filePath, identity, { overwrite = false 
   if (path.basename(filePath) === IDENTITY_FILE_NAME && path.basename(directory) === '.aiki') {
     await ensureIdentityIgnored(directory)
   }
+  if (!identity || typeof identity !== 'object' || !AGENT_TOKEN_PATTERN.test(String(identity.access_token || ''))) {
+    throw new Error(`AIKI identity can only save a complete access_token; api_key_prefix is not a credential: ${filePath}`)
+  }
   const data = `${JSON.stringify(identity, null, 2)}\n`
+  const temporaryPath = `${filePath}.tmp-${process.pid}-${randomBytes(8).toString('hex')}`
+  let committed = false
   try {
-    await writeFile(filePath, data, { mode: 0o600, flag: overwrite ? 'w' : 'wx' })
+    await writeFile(temporaryPath, data, { mode: 0o600, flag: 'wx' })
+    if (overwrite) {
+      try {
+        await rename(temporaryPath, filePath)
+      } catch (error) {
+        if (!['EEXIST', 'EPERM'].includes(error?.code)) throw error
+        await unlink(filePath)
+        await rename(temporaryPath, filePath)
+      }
+    } else if (process.platform === 'win32') {
+      const handle = await open(filePath, 'wx', 0o600)
+      try {
+        await handle.writeFile(data, 'utf8')
+        await handle.sync()
+      } finally {
+        await handle.close()
+      }
+      await unlink(temporaryPath)
+    } else {
+      await link(temporaryPath, filePath)
+      await unlink(temporaryPath)
+    }
+    committed = true
   } catch (error) {
     if (error?.code === 'EEXIST') throw new Error(`AIKI identity already exists: ${filePath}. Use --force to replace it.`)
     throw error
+  } finally {
+    if (!committed) await unlink(temporaryPath).catch(() => {})
   }
   return filePath
 }

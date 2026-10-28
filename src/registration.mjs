@@ -1,6 +1,4 @@
-import { DEFAULT_MCP_URL, aikiHome, profileIdentityPath, projectIdentityPath, writeIdentityFile } from './identity.mjs'
-
-const TOKEN_PATTERN = /^aiki_agent_[A-Za-z0-9_-]{43}$/
+import { AGENT_TOKEN_PATTERN, DEFAULT_MCP_URL, aikiHome, profileIdentityPath, projectIdentityPath, writeIdentityFile } from './identity.mjs'
 
 function cleanServerUrl(serverUrl) {
   const value = String(serverUrl || DEFAULT_MCP_URL).replace(/\/$/, '')
@@ -58,8 +56,11 @@ export async function registerAgent({
     throw new Error(`AIKI agent registration failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`)
   }
 
-  const accessToken = String(data?.api_key || '')
-  if (!TOKEN_PATTERN.test(accessToken)) throw new Error('AIKI registration returned no valid one-time agent key.')
+  let accessToken = String(data?.api_key || '')
+  if (!AGENT_TOKEN_PATTERN.test(accessToken) && data?.recovery_url) {
+    accessToken = await downloadRecoveryKey(data.recovery_url, fetchImpl)
+  }
+  if (!AGENT_TOKEN_PATTERN.test(accessToken)) throw new Error('AIKI registration returned no complete agent key; api_key_prefix is not a credential.')
 
   const identity = {
     format: 1,
@@ -80,6 +81,20 @@ export async function registerAgent({
     identity: { ...identity, access_token: undefined },
     actor: data.actor || null,
   }
+}
+
+async function downloadRecoveryKey(recoveryUrl, fetchImpl) {
+  let url
+  try {
+    url = new URL(String(recoveryUrl))
+  } catch {
+    throw new Error('AIKI registration returned an invalid agent key recovery URL.')
+  }
+  if (!['https:', 'http:'].includes(url.protocol)) throw new Error('AIKI agent key recovery URL must use HTTP(S).')
+  const response = await fetchImpl(url.toString(), { headers: { accept: 'text/plain' } })
+  const token = (await response.text()).trim()
+  if (!response.ok || !AGENT_TOKEN_PATTERN.test(token)) throw new Error('AIKI agent key recovery URL did not return a complete agent key.')
+  return token
 }
 
 export function identityStoreDescription({ local = false, projectDir, profile, env = process.env } = {}) {
