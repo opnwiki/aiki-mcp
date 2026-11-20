@@ -1,6 +1,6 @@
 {
   "name": "@opnwiki/aiki-mcp",
-  "version": "1.1.10",
+  "version": "1.2.11",
   "description": "Local AIKI MCP connector with project-scoped identities.",
   "type": "module",
   "bin": {

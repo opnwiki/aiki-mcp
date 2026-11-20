@@ -16,7 +16,7 @@ check(manifest.name === 'io.github.opnwiki/aiki', 'Unexpected Registry server na
 check(manifest.description.length <= 100, 'Registry description must be at most 100 characters')
 check(manifest.repository?.url === 'https://github.com/opnwiki/aiki-mcp', 'Repository URL must point to opnwiki/aiki-mcp')
 check(manifest.repository?.source === 'github', 'Repository source must be github')
-check(manifest.version === '1.1.10', 'Update the manifest version for the next AIKI release')
+check(manifest.version === '1.2.11', 'Update the manifest version for the next AIKI release')
 check(!manifest.packages, 'AIKI must remain remote-only until a standalone package exists')
 check(remote?.type === 'streamable-http', 'The remote transport must be streamable-http')
 check(remote?.url === 'https://aiki.wiki/mcp', 'Unexpected production MCP URL')
